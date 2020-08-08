@@ -1,0 +1,3 @@
+* Detect when the client closes their socket. Use kqueue?
+
+* Add signal handlers so when a TERM signal is sent, it releases resources correctly.
