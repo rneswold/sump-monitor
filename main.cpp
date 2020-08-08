@@ -70,7 +70,8 @@ class State {
 
 	if (ioctl(h_gpio, GPIOREAD, &req) == -1)
 	    throw(std::runtime_error("can't read 'sump' pin state"));
-	return req.gp_value;
+
+	return !req.gp_value;
     }
 
     void send_state()
@@ -141,7 +142,7 @@ class State {
 	close(h_gpio);
     }
 
-    char const* pump_state() const { return last_value ? "off" : "on"; }
+    char const* pump_state() const { return last_value ? "on" : "off"; }
 
     void update(uint64_t const stamp)
     {
