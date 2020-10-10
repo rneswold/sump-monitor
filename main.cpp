@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <unistd.h>
-#include <time.h>
+#include <sys/event.h>
+#include <sys/time.h>
 #include <sys/gpio.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -61,6 +62,26 @@ class State {
 	throw std::runtime_error("couldn't open GPIO device");
     }
 
+    void set_client(bool const v)
+    {
+	struct gpio_req req;
+
+	std::memset(&req, 0, sizeof(req));
+	req.gp_pin = 18;
+	req.gp_value = v ? 0 : 1;
+	ioctl(h_gpio, GPIOWRITE, &req);
+    }
+
+    void set_activity(bool const v)
+    {
+	struct gpio_req req;
+
+	std::memset(&req, 0, sizeof(req));
+	req.gp_pin = 17;
+	req.gp_value = v ? 0 : 1;
+	ioctl(h_gpio, GPIOWRITE, &req);
+    }
+
     bool read_pin() const
     {
 	struct gpio_req req;
@@ -94,6 +115,7 @@ class State {
 	    if (send(s_client, buf, sizeof(buf), MSG_NOSIGNAL) != sizeof(buf)) {
 		syslog(LOG_WARNING, "couldn't send to client ... "
 		       "closing connection");
+		set_client(false);
 		close(s_client);
 		s_client = -1;
 	    }
@@ -113,6 +135,8 @@ class State {
 	int const s = accept(s_listen, reinterpret_cast<sockaddr*>(&addr), &len);
 
 	if (s != -1) {
+	    set_client(true);
+
 	    if (s_client != -1)
 		close(s_client);
 
@@ -132,10 +156,14 @@ class State {
 	last_stamp(0), last_value(false), s_listen(create_listener()),
 	s_client(-1), h_gpio(open_gpio())
     {
+	set_client(false);
+	set_activity(false);
     }
 
     ~State()
     {
+	set_client(false);
+	set_activity(false);
 	if (s_client != -1)
 	    close(s_client);
 	close(s_listen);
@@ -146,6 +174,7 @@ class State {
 
     void update(uint64_t const stamp)
     {
+	set_activity(true);
 	bool const current = read_pin();
 
 	if (last_value != current || !last_stamp) {
