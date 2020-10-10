@@ -1,5 +1,7 @@
 #include <fcntl.h>
 #include <unistd.h>
+#include <cstdlib>
+#include <util.h>
 #include <sys/event.h>
 #include <sys/time.h>
 #include <sys/gpio.h>
@@ -202,7 +204,23 @@ static uint32_t const delta = 50000000;
 
 int main(int, char**)
 {
+    // Turn into a background process. First call `daemon` to go in
+    // the background. Then open a connection to `syslog`. Next,
+    // create the PID file that the init.s framework wants to
+    // see. Finally, set the user ID to 'drmem'.
+
+    if (-1 == daemon(0, 0))
+	return 1;
+
     openlog("sump", 0, LOG_USER);
+
+    if (-1 == pidfile(0))
+	syslog(LOG_WARNING, "couldn't create PID file -- %m");
+
+    if (-1 == seteuid(10000))
+	syslog(LOG_WARNING, "couldn't become `drmem` -- %m");
+
+    // Now we're in the main guts of the process.
 
     try {
 	State state;

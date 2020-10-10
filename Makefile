@@ -1,4 +1,4 @@
-CXXFLAGS+=-W -Wall -Werror -O2
+CXXFLAGS+=-W -Wall -Werror
 
 sump : main.o
-	c++ -o ${.TARGET} ${.ALLSRC}
+	c++ -lutil -o ${.TARGET} ${.ALLSRC}
