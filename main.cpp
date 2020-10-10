@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <util.h>
+#include <csignal>
 #include <sys/event.h>
 #include <sys/time.h>
 #include <sys/gpio.h>
@@ -11,6 +12,13 @@
 #include <syslog.h>
 #include <cstring>
 #include <stdexcept>
+
+static bool done = false;
+
+static void quit(int)
+{
+    done = true;
+}
 
 class State {
     uint64_t last_stamp;
@@ -220,6 +228,9 @@ int main(int, char**)
     if (-1 == seteuid(10000))
 	syslog(LOG_WARNING, "couldn't become `drmem` -- %m");
 
+    signal(SIGINT, quit);
+    signal(SIGTERM, quit);
+
     // Now we're in the main guts of the process.
 
     try {
@@ -229,7 +240,7 @@ int main(int, char**)
 	ts.tv_sec = time(0) + 1;
 	ts.tv_nsec = 0;
 
-	while (true) {
+	while (!done) {
 	    int const result =
 		clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, 0);
 
@@ -256,6 +267,7 @@ int main(int, char**)
 		ts.tv_nsec -= 1000000000;
 	    }
 	}
+	syslog(LOG_INFO, "terminating");
 	return 0;
     }
     catch (std::exception const& e) {
