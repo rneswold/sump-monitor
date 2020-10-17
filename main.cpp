@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <util.h>
 #include <csignal>
+#include <sched.h>
 #include <sys/event.h>
 #include <sys/time.h>
 #include <sys/gpio.h>
@@ -224,6 +225,13 @@ int main(int, char**)
 
     if (-1 == pidfile(0))
 	syslog(LOG_WARNING, "couldn't create PID file -- %m");
+
+    sched_param param;
+
+    param.sched_priority = sched_get_priority_min(SCHED_RR);
+
+    if (-1 == sched_setscheduler(0, SCHED_RR, &param))
+	syslog(LOG_WARNING, "couldn't use real-time scheduling -- %m");
 
     if (-1 == seteuid(10000))
 	syslog(LOG_WARNING, "couldn't become `drmem` -- %m");
