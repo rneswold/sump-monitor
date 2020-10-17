@@ -221,7 +221,7 @@ int main(int, char**)
     if (-1 == daemon(0, 0))
 	return 1;
 
-    openlog("sump", 0, LOG_USER);
+    openlog("sump", 0, LOG_DAEMON);
 
     if (-1 == pidfile(0))
 	syslog(LOG_WARNING, "couldn't create PID file -- %m");
