@@ -151,6 +151,16 @@ class State {
 	    if (s_client != -1)
 		close(s_client);
 
+	    int const val = 1;
+
+	    if (-1 == setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &val,
+				 sizeof(val)))
+		syslog(LOG_WARNING, "couldn't shut off EPIPE ... "
+		       "KEEPALIVE will stay off");
+	    else if (-1 == setsockopt(s, SOL_SOCKET, SO_KEEPALIVE,
+				      &val, sizeof(val)))
+		syslog(LOG_WARNING, "couldn't enable KEEPALIVE");
+
 	    shutdown(s, SHUT_RD);
 	    s_client = s;
 	    send_state();
