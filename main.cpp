@@ -212,7 +212,7 @@ class State {
 	timespec ts;
 
 	ts.tv_sec = 0;
-	ts.tv_nsec = 20000000;
+	ts.tv_nsec = 15000000;
 
 	nanosleep(&ts, 0);
 	set_activity(false);
