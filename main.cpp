@@ -201,9 +201,9 @@ class State {
 	if (last_value != current || !last_stamp) {
 	    last_stamp = stamp;
 	    last_value = current;
-
+#if 0
 	    syslog(LOG_INFO, "state: %s, @ts: %llu", pump_state(), stamp);
-
+#endif
 	    send_state();
 	}
 
