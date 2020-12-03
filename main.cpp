@@ -20,6 +20,24 @@ static void quit(int)
     done = true;
 }
 
+static void sleep_until(timespec const& ts)
+{
+    int result;
+
+    do {
+	result = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, 0);
+
+	// If the function returns 0, the full amount of time has
+	// elapsed. If it's greater than 0, a signal interrupted the
+	// timeout so simply go back and wait for the remainder of
+	// time. A -1 should never happen and means something is
+	// seriously wrong.
+
+	if (result == -1)
+	    throw std::runtime_error("clock_nanosleep returned an error");
+    } while (result > 0);
+}
+
 class State {
     uint64_t last_stamp;
     bool last_value;
@@ -208,12 +226,13 @@ class State {
 
 	check_for_clients();
 
+	uint64_t const led_tmo = stamp + 15;
 	timespec ts;
 
-	ts.tv_sec = 0;
-	ts.tv_nsec = 15000000;
+	ts.tv_sec = led_tmo / 1000;
+	ts.tv_nsec = (led_tmo % 1000) * 1000000;
 
-	nanosleep(&ts, 0);
+	sleep_until(ts);
 	set_activity(false);
     }
 };
@@ -258,19 +277,7 @@ int main(int, char**)
 	ts.tv_nsec = 0;
 
 	while (!done) {
-	    int const result =
-		clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, 0);
-
-	    // If the timeout returns 0, it's time to do some
-	    // processing. If it's greater than 0, a signal
-	    // interrupted the timeout so simply go back and wait for
-	    // the remainder of time. A -1 should never happen and
-	    // means something is seriously wrong.
-
-	    if (result > 0)
-		continue;
-	    else if (result == -1)
-		throw std::runtime_error("clock_nanosleep returned an error");
+	    sleep_until(ts);
 
 	    uint64_t const stamp = uint64_t(ts.tv_sec) * 1000 +
 		uint64_t(ts.tv_nsec / 1000000);
