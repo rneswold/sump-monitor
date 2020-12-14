@@ -20,12 +20,26 @@ static void quit(int)
     done = true;
 }
 
-static void sleep_until(timespec const& ts)
+static uint64_t get_time()
 {
+    timespec timebase;
+
+    if (-1 == clock_gettime(CLOCK_MONOTONIC, &timebase))
+	throw(std::runtime_error("can't get time from CLOCK_MONOTONIC"));
+
+    return timebase.tv_sec * 1000 + timebase.tv_nsec / 1000000;
+}
+
+static void sleep_until(uint64_t const timebase)
+{
+    timespec ts;
     int result;
 
+    ts.tv_sec = timebase / 1000;
+    ts.tv_nsec = (timebase % 1000) * 1000000;
+
     do {
-	result = clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, 0);
+	result = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, &ts);
 
 	// If the function returns 0, the full amount of time has
 	// elapsed. If it's greater than 0, a signal interrupted the
@@ -225,14 +239,7 @@ class State {
 	}
 
 	check_for_clients();
-
-	uint64_t const led_tmo = stamp + 15;
-	timespec ts;
-
-	ts.tv_sec = led_tmo / 1000;
-	ts.tv_nsec = (led_tmo % 1000) * 1000000;
-
-	sleep_until(ts);
+	sleep_until(stamp + 20);
 	set_activity(false);
     }
 };
@@ -271,26 +278,16 @@ int main(int, char**)
 
     try {
 	State state;
-	timespec ts;
+	uint64_t timebase = get_time();
 
-	ts.tv_sec = time(0) + 1;
-	ts.tv_nsec = 0;
+	syslog(LOG_INFO, "initial time: %llu", timebase);
 
 	while (!done) {
-	    sleep_until(ts);
-
-	    uint64_t const stamp = uint64_t(ts.tv_sec) * 1000 +
-		uint64_t(ts.tv_nsec / 1000000);
-
-	    state.update(stamp);
-
-	    // Update the next timeout time.
-
-	    if ((ts.tv_nsec += delta) >= 1000000000) {
-		ts.tv_sec += 1;
-		ts.tv_nsec -= 1000000000;
-	    }
+	    timebase += 50;
+	    sleep_until(timebase);
+	    state.update(timebase);
 	}
+
 	syslog(LOG_INFO, "terminating");
 	return 0;
     }
