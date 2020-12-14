@@ -8,6 +8,7 @@
 #include <sys/gpio.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <poll.h>
 #include <netinet/in.h>
 #include <syslog.h>
 #include <cstring>
@@ -192,7 +193,6 @@ class State {
 				      &val, sizeof(val)))
 		syslog(LOG_WARNING, "couldn't enable KEEPALIVE");
 
-	    shutdown(s, SHUT_RD);
 	    s_client = s;
 	    send_state();
 
@@ -200,6 +200,22 @@ class State {
 
 	    print_addr(buf, ntohl(addr.sin_addr.s_addr), ntohs(addr.sin_port));
 	    syslog(LOG_INFO, "new client: %s", buf);
+	} else if (s_client != -1) {
+	    pollfd fds;
+
+	    fds.fd = s_client;
+	    fds.events = POLLIN;
+
+	    if (poll(&fds, 1, 0) > 0) {
+		char buffer[32];
+
+		if (recv(s_client, buffer, sizeof(buffer),
+			 MSG_PEEK | MSG_DONTWAIT) == 0) {
+		    close(s_client);
+		    s_client = -1;
+		    set_client(false);
+		}
+	    }
 	}
     }
 
