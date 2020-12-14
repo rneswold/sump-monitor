@@ -253,10 +253,11 @@ int main(int, char**)
     // create the PID file that the init.s framework wants to
     // see. Finally, set the user ID to 'drmem'.
 
+#if defined(NDEBUG)
     if (-1 == daemon(0, 0))
 	return 1;
 
-    openlog("sump", 0, LOG_DAEMON);
+    openlog("sump", LOG_NDELAY, LOG_DAEMON);
 
     if (-1 == pidfile(0))
 	syslog(LOG_WARNING, "couldn't create PID file -- %m");
@@ -270,6 +271,9 @@ int main(int, char**)
 
     if (-1 == seteuid(10000))
 	syslog(LOG_WARNING, "couldn't become `drmem` -- %m");
+#else
+    openlog("sump", LOG_PERROR | LOG_NLOG | LOG_NDELAY, LOG_DAEMON);
+#endif
 
     signal(SIGINT, quit);
     signal(SIGTERM, quit);
