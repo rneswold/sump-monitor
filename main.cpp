@@ -255,8 +255,10 @@ class State {
 	}
 
 	check_for_clients();
-	sleep_until(stamp + 20);
-	set_activity(false);
+	if (!current) {
+	    sleep_until(stamp + 20);
+	    set_activity(false);
+	}
     }
 };
 
