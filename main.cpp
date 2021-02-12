@@ -8,6 +8,7 @@
 #include <sys/gpio.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 #include <poll.h>
 #include <netinet/in.h>
 #include <syslog.h>
@@ -279,6 +280,9 @@ int main(int, char**)
 
     if (-1 == pidfile(0))
 	syslog(LOG_WARNING, "couldn't create PID file -- %m");
+
+    if (-1 == mlockall(MCL_CURRENT | MCL_FUTURE))
+	syslog(LOG_WARNING, "couldn't lock memory -- %m");
 
     sched_param param;
 
