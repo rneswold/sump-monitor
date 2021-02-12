@@ -6,7 +6,7 @@ else
 CXXFLAGS+=-DNDEBUG -O2
 endif
 
-sump : main.o
+sumpd : main.o
 	c++ -g -lrt -lutil -o $@ $^
 
 clean :
