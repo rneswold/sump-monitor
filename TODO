@@ -1,1 +1,0 @@
-* Detect when the client closes their socket. Use kqueue?
