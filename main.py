@@ -154,48 +154,6 @@ sm_status.active(1)
 sm_sump1.active(1)
 sm_sump2.active(1)
 
-# The main routine for the secondary thread. This thread polls the status
-# pin and sends any changes to the main thread through an IPC.
-
-def sump_monitor():
-    global sump_state
-    global sump_status
-    
-    last_value = None
-    base_time = time.time_ns()
-    
-    # Infinitely loop.
-    
-    while True:
-        # Poll the input at 20 Hz.
-        
-        time.sleep_ms(50)
-
-        # Toggle the LED that indicates we're sampling. Sleep for 20
-        # milliseconds so the LED will be on long enough to see and to
-        # let the relay contacts debounce a bit.
-
-        sump_status.on()
-        tmp = sump_state.value()
-        time.sleep_ms(5)
-        if tmp == 1:
-            sump_status.off()
-    
-        # If the pin state has changed, check to see if it is still different.
-        # If so, reset the timeout, save the new state and report it.
-    
-        if tmp != last_value:
-            if tmp == sump_state.value():
-                last_value = tmp
-                base_time = time.time_ns()
-                continue
-
-        # Nothing interesting happened with the input, so see if 5 seconds has
-        # elapsed. If so, send a keep alive message.
-
-        if time.time_ns() - base_time >= 5000000000:
-            base_time += 5000000000
-
 # Global variable used by `set_status` so it doesn't send the same status
 # over and over to the PIO module (once the PIO FIFO gets full, the Python
 # script will block adding new, same values.)
@@ -232,8 +190,6 @@ def main():
     wlan.active(True)
     wlan.connect('*****', '*****')
     led.off()
-    
-    #_thread.start_new_thread(sump_monitor, ())
 
     # Infinite loop.
 
