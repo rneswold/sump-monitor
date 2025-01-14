@@ -3,7 +3,7 @@ import _thread
 import network
 import rp2
 from machine import Pin
- 
+
 # Defines the sump pump scan logic.
 
 @rp2.asm_pio(out_shiftdir=rp2.PIO.SHIFT_LEFT,
@@ -51,7 +51,7 @@ def monitor_sump():
 def status():
     # Zero out ISR. ISR holds the latest error code and we default it to
     # zero (i.e. "no error".)
-    
+
     in_(null, 32)       .side(0)
 
     # Emit a 2 sec low signal to separate blips/codes.
@@ -63,7 +63,7 @@ def status():
     label("loop1")
     jmp(x_dec, "loop1") .side(0)    [15]
     jmp(y_dec, "loop2") .side(0)
-    
+
     # ISR always holds the lastest error code. We transfer it into X so, if
     # the PULL fails, OSR will equal X (i.e. ISR) and the error code stays
     # the same. Place whatever value we get back into ISR.
@@ -71,23 +71,23 @@ def status():
     mov(x, isr)         .side(0)
     pull(noblock)       .side(0)
     mov(isr, osr)       .side(0)
-    
+
     # If the code is zero, just blip the LED.
-    
+
     mov(x, osr)         .side(0)
     jmp(not_x, "blip")  .side(0)
-    
+
     # Ignore leading zeroes. The error code stream of bits must at the
     # least significant end of the integer. The error stream starts with
     # a 1, which gets thrown away.
-    
+
     label("skip")
     out(y, 1)           .side(0)
     jmp(not_y, "skip")  .side(0)
-    
+
     # Main loop of the digit stream. If the OSR has been fully shifted out,
     # then we're done processing the code. Go look for an updated value.
-    
+
     label("next")
     jmp(not_osre, "load").side(0)
     jmp("get_next")     .side(0)
@@ -106,9 +106,9 @@ def status():
     label("digit")
     nop()               .side(1)    [14]
     jmp(x_dec, "digit") .side(1)    [14]
-    
+
     # Generate a space and then loop back to process more bits in the OSR.
-    
+
     set(x, 15)          .side(0)    [7]
     label("space")
     jmp(x_dec, "space") .side(0)    [14]
@@ -119,9 +119,9 @@ def status():
     label("blip")
     nop()               .side(1)
     jmp("get_next")     .side(1)
-    
+
 # Creates a `StateMachine` that runs the sump monitor logic.
-    
+
 def create_sump_sm(idx, state, status):
     state_pin = Pin(state, mode=Pin.IN, pull=Pin.PULL_UP)
     status_pin = Pin(status, mode=Pin.OUT, pull=Pin.PULL_UP, value=0)
@@ -199,7 +199,7 @@ prev_code = -1
 def set_status(code):
     global sm_status
     global prev_code
-    
+
     if prev_code != code:
         prev_code = code
         if code == 0:
@@ -228,7 +228,7 @@ def main():
     # Infinite loop.
 
     while True:
-        
+
         # Update global state based on the current network condition. If we
         # have an IP address, then set up the socket.
 
@@ -259,7 +259,7 @@ def main():
                 set_status(-status + 13)
             else:
                 set_status(status + 11)
-            
+
         time.sleep_ms(250)
 
 main()
