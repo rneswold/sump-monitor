@@ -130,10 +130,20 @@ def create_sump_sm(idx, state, status):
 
 # Initialize global resources.
 
+# `led` controls the onboard LED. On the Pico W, the PIO modules can't
+# control this LED, so we'll use it for low-speed indication. In this
+# script, it's use to indicate we are connected to the WiFi.
+
 led = Pin("LED", Pin.OUT)
+
+# `status_pin` is connected to a red LED. It's used by the state machine
+# to show the flashing heatbeat or, is an error is reported, the value
+# of the error code by using long and short pulses.
 
 status_pin = Pin("GP19", mode=Pin.OUT, pull=Pin.PULL_UP, value=0)
 sm_status = rp2.StateMachine(0, status, freq=2000, sideset_base=status_pin)
+
+# Create two state machines, each which monitor a sump pump input.
 
 sm_sump1 = create_sump_sm(5, "GP12", "GP13")
 sm_sump2 = create_sump_sm(6, "GP14", "GP15")
