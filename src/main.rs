@@ -78,7 +78,7 @@ async fn main(spawner: Spawner) {
 
         control.init(FWARE_CLM).await;
         control
-            .set_power_management(cyw43::PowerManagementMode::PowerSave)
+            .set_power_management(cyw43::PowerManagementMode::Performance)
             .await;
         control
     };
