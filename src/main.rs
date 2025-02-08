@@ -66,12 +66,13 @@ async fn main(spawner: Spawner) {
             p.DMA_CH0,
         );
 
-        const FWARE: &[u8] = include_bytes!("firmware/43439A0.bin");
-        const FWARE_CLM: &[u8] = include_bytes!("firmware/43439A0_clm.bin");
-
         static STATE: StaticCell<cyw43::State> = StaticCell::new();
 
         let state = STATE.init(cyw43::State::new());
+
+        const FWARE: &[u8] = include_bytes!("firmware/43439A0.bin");
+        const FWARE_CLM: &[u8] = include_bytes!("firmware/43439A0_clm.bin");
+
         let (_net_device, mut control, runner) = cyw43::new(state, pwr, spi, FWARE).await;
 
         unwrap!(spawner.spawn(cyw43_task(runner)));
