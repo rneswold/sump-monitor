@@ -28,8 +28,15 @@ async fn cyw43_task(
     runner.run().await
 }
 
+// Runs a task that is used as a heartbeat indicator. Eventually, all
+// background tasks will need to periodically notify this task to prove
+// they're still running. This task will flash the LED (and feed the
+// watchdog?) while everything is healthy.
+//
+// Right now it simply flashes the onboard LED.
+
 #[embassy_executor::task]
-async fn blink_led(mut control: Control<'static>) -> ! {
+async fn heartbeat(mut control: Control<'static>) -> ! {
     use embassy_time::{Duration, Ticker};
 
     let delay = Duration::from_millis(1000);
@@ -84,5 +91,5 @@ async fn main(spawner: Spawner) {
         control
     };
 
-    unwrap!(spawner.spawn(blink_led(control)));
+    unwrap!(spawner.spawn(heartbeat(control)));
 }
