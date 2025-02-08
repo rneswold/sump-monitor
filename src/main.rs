@@ -39,7 +39,7 @@ async fn cyw43_task(
 async fn heartbeat(mut control: Control<'static>) -> ! {
     use embassy_time::{Duration, Ticker};
 
-    let delay = Duration::from_millis(1000);
+    let delay = Duration::from_millis(100);
     let mut ticker = Ticker::every(delay);
     let mut state = false;
 
