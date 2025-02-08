@@ -3,7 +3,7 @@
 
 use cyw43::Control;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
-use defmt::{info, unwrap};
+use defmt::unwrap;
 use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
@@ -37,7 +37,6 @@ async fn blink_led(mut control: Control<'static>) -> ! {
     let mut state = false;
 
     loop {
-        info!("led {}", if state { "ON" } else { "OFF" });
         control.gpio_set(0, state).await;
         state = !state;
 
