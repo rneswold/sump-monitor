@@ -5,15 +5,24 @@ edition = "2021"
 
 [dependencies]
 
+defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
+static_cell = "2.1"
+portable-atomic = { version = "1.5", features = ["critical-section"] }
 cortex-m = { version = "0.7.6", features = ["inline-asm"] }
 cortex-m-rt = "0.7.0"
+cyw43 = { version = "0.3.0", features = [] }
+cyw43-pio = { version = "0.3.0", features = [] }
 
 [dependencies.embassy-executor]
 version = "0.7.0"
 features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread",
 	    "executor-interrupt", "defmt"]
+
+[dependencies.embassy-time]
+version = "0.4.0"
+features = ["defmt", "defmt-timestamp-uptime"]
 
 [dependencies.embassy-rp]
 version = "0.3.0"
