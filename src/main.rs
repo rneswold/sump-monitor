@@ -4,18 +4,34 @@
 use cyw43::Control;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
 use defmt::unwrap;
+use display_interface_i2c::I2CInterface;
 use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
     gpio::{Level, Output},
-    peripherals::{DMA_CH0, PIO0},
-    pio::{InterruptHandler, Pio},
+    i2c::{self, Async, I2c},
+    peripherals::{DMA_CH0, I2C1, PIO0},
+    pio::{self, Pio},
+};
+use embedded_graphics::{
+    image::{Image, ImageRaw},
+    pixelcolor::BinaryColor,
+    prelude::*,
+    Drawable,
+};
+use ssd1306::{
+    mode::{BufferedGraphicsModeAsync, DisplayConfigAsync}, prelude::DisplayRotation, size::DisplaySize128x64,
+    I2CDisplayInterface, Ssd1306Async,
 };
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
-bind_interrupts!(struct Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+bind_interrupts!(struct PioIrqs {
+    PIO0_IRQ_0 => pio::InterruptHandler<PIO0>;
+});
+
+bind_interrupts!(struct I2cIrqs {
+    I2C1_IRQ => i2c::InterruptHandler<I2C1>;
 });
 
 // This project uses the CYW4349 WiFi interface. This function defines the
@@ -51,6 +67,31 @@ async fn heartbeat(mut control: Control<'static>) -> ! {
     }
 }
 
+#[embassy_executor::task]
+async fn display_control(mut display: Ssd1306Async<I2CInterface<I2c<'static, I2C1, Async>>, DisplaySize128x64, BufferedGraphicsModeAsync<DisplaySize128x64>>) -> ! {
+
+    display.init().await.unwrap();
+
+    let raw: ImageRaw<BinaryColor> = ImageRaw::new(include_bytes!("./rust.raw"), 64);
+    let mut offset_iter = (0..=64).chain((1..64).rev()).cycle();
+
+    loop {
+        use embedded_graphics::{
+            mono_font::{ascii::FONT_9X15_BOLD, MonoTextStyle},
+            text::{Alignment, Text},
+        };
+
+        if let Some(x) = offset_iter.next() {
+        let top_left = Point::new(x, 0);
+        let im = Image::new(&raw, top_left);
+
+        im.draw(&mut display).unwrap();
+        display.flush().await.unwrap();
+        display.clear(BinaryColor::Off).unwrap();
+        }
+    }
+}
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
@@ -61,7 +102,7 @@ async fn main(spawner: Spawner) {
     let control = {
         let pwr = Output::new(p.PIN_23, Level::Low);
         let cs = Output::new(p.PIN_25, Level::High);
-        let mut pio = Pio::new(p.PIO0, Irqs);
+        let mut pio = Pio::new(p.PIO0, PioIrqs);
         let spi = PioSpi::new(
             &mut pio.common,
             pio.sm0,
@@ -92,4 +133,20 @@ async fn main(spawner: Spawner) {
     };
 
     unwrap!(spawner.spawn(heartbeat(control)));
+
+    // This section initializes the SDD1306 OLED hardware.
+
+    let display = {
+        let mut cfg = i2c::Config::default();
+
+        cfg.frequency = 400_000;
+
+        let interface =
+            I2CDisplayInterface::new(I2c::new_async(p.I2C1, p.PIN_27, p.PIN_26, I2cIrqs, cfg));
+
+        Ssd1306Async::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+            .into_buffered_graphics_mode()
+    };
+
+    unwrap!(spawner.spawn(display_control(display)));
 }
