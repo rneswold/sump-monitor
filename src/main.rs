@@ -4,24 +4,16 @@
 use cyw43::Control;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
 use defmt::unwrap;
-use display_interface_i2c::I2CInterface;
 use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
     gpio::{Level, Output},
-    i2c::{self, Async, I2c},
+    i2c::{self, I2c},
     peripherals::{DMA_CH0, I2C1, PIO0},
     pio::{self, Pio},
 };
-use embedded_graphics::{
-    image::{Image, ImageRaw},
-    pixelcolor::BinaryColor,
-    prelude::*,
-    Drawable,
-};
 use ssd1306::{
-    mode::{BufferedGraphicsModeAsync, DisplayConfigAsync}, prelude::DisplayRotation, size::DisplaySize128x64,
-    I2CDisplayInterface, Ssd1306Async,
+    prelude::DisplayRotation, size::DisplaySize128x64, I2CDisplayInterface, Ssd1306Async,
 };
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -33,6 +25,32 @@ bind_interrupts!(struct PioIrqs {
 bind_interrupts!(struct I2cIrqs {
     I2C1_IRQ => i2c::InterruptHandler<I2C1>;
 });
+
+enum WifiState {
+    Searching,
+    AuthError,
+    Connected,
+}
+
+enum ServerState {
+    NoClient,
+    Client,
+}
+
+enum Pump {
+    Primary,
+    Secondary,
+}
+
+enum Message {
+    PumpOn { stamp: u64, pump: Pump },
+    PumpOff { stamp: u64, pump: Pump },
+    ClientConnected { addr: u32 },
+    ClientDisconnected,
+    WifiUpdate { state: WifiState },
+}
+
+mod display;
 
 // This project uses the CYW4349 WiFi interface. This function defines the
 // background task that manages the hardware.
@@ -64,31 +82,6 @@ async fn heartbeat(mut control: Control<'static>) -> ! {
         state = !state;
 
         ticker.next().await;
-    }
-}
-
-#[embassy_executor::task]
-async fn display_control(mut display: Ssd1306Async<I2CInterface<I2c<'static, I2C1, Async>>, DisplaySize128x64, BufferedGraphicsModeAsync<DisplaySize128x64>>) -> ! {
-
-    display.init().await.unwrap();
-
-    let raw: ImageRaw<BinaryColor> = ImageRaw::new(include_bytes!("./rust.raw"), 64);
-    let mut offset_iter = (0..=64).chain((1..64).rev()).cycle();
-
-    loop {
-        use embedded_graphics::{
-            mono_font::{ascii::FONT_9X15_BOLD, MonoTextStyle},
-            text::{Alignment, Text},
-        };
-
-        if let Some(x) = offset_iter.next() {
-        let top_left = Point::new(x, 0);
-        let im = Image::new(&raw, top_left);
-
-        im.draw(&mut display).unwrap();
-        display.flush().await.unwrap();
-        display.clear(BinaryColor::Off).unwrap();
-        }
     }
 }
 
@@ -148,5 +141,5 @@ async fn main(spawner: Spawner) {
             .into_buffered_graphics_mode()
     };
 
-    unwrap!(spawner.spawn(display_control(display)));
+    unwrap!(spawner.spawn(display::task(display)));
 }

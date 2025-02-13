@@ -19,6 +19,7 @@ ssd1306 = { version = "0.9", features = ["async"] }
 display-interface = "0.5"
 display-interface-i2c = "0.5"
 embedded-graphics = "0.8"
+tinybmp = "0.6"
 embedded-hal = "1.0"
 embedded-hal-async = { version = "1.0"}
 embassy-futures = "0.1.1"
