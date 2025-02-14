@@ -1,9 +1,19 @@
-use super::{ServerState, WifiState, Pump, Message};
+use super::{Message, Pump, ServerState, SysSubscriber, WifiState};
 use display_interface_i2c::I2CInterface;
+use embassy_futures::select::Either;
 use embassy_rp::{
     i2c::{Async, I2c},
     peripherals::I2C1,
 };
+use embassy_sync::pubsub::WaitResult;
+use embedded_graphics::{
+    image::Image,
+    mono_font::{ascii::FONT_9X18_BOLD, MonoTextStyle},
+    pixelcolor::BinaryColor,
+    prelude::*,
+    text::{Alignment, Text},
+};
+use futures::future::FutureExt;
 use ssd1306::{
     mode::{BufferedGraphicsModeAsync, DisplayConfigAsync},
     size::DisplaySize128x64,
@@ -17,21 +27,26 @@ enum PumpState {
     Unknown,
 }
 
+enum LoopEvent {
+    Lagging,
+    Message(Message),
+}
+
 // Determines the amount of time to use a layout. OLEDs can get dim over
 // time -- especially when the image is static, like this application's.
 // When this number of milliseconds has elapsed, we use a different layout.
 
 const FLIP_LAYOUT: u64 = 10_000;
 
-// Define `OLED` to be the type that manages the SSD1306-based OLED display.
+// Define `Oled` to be the type that manages the SSD1306-based OLED display.
 
-type OLED = Ssd1306Async<
+type Oled = Ssd1306Async<
     I2CInterface<I2c<'static, I2C1, Async>>,
     DisplaySize128x64,
     BufferedGraphicsModeAsync<DisplaySize128x64>,
 >;
 
-fn pump_message(pri: PumpState, sec: PumpState) -> Option<&'static str> {
+fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
     match (pri, sec) {
         (PumpState::On(_), PumpState::On(_)) => Some("Both"),
         (_, PumpState::On(_)) => Some("Secondary"),
@@ -46,9 +61,8 @@ fn pump_message(pri: PumpState, sec: PumpState) -> Option<&'static str> {
 // to update internal state which determines what goes on the display.
 
 #[embassy_executor::task]
-pub async fn task(mut display: OLED) -> ! {
+pub async fn task(mut display: Oled, mut rx: SysSubscriber) -> ! {
     use embassy_time::{Duration, Instant, Ticker};
-    use embedded_graphics::{image::Image, pixelcolor::BinaryColor, prelude::*, Drawable};
     use tinybmp::Bmp;
 
     // These assignments create the bitmaps. The yse of `.unwrap()` is safe
@@ -83,90 +97,150 @@ pub async fn task(mut display: OLED) -> ! {
     // Infinite loop. This task never exits.
 
     loop {
-        let now = Instant::now().as_millis();
+        // Wait for either a tick or a message from the PubSub channel.
+        // Convert either event into a `LoopEvent`.
 
-        // Determine which if the two layouts to use. The offset for the
-        // sidebar's icons is adjusted based on this value.
+        let event = embassy_futures::select::select(
+            tick.next(),
+            rx.next_message().map(|msg| {
+                if let WaitResult::Message(msg) = msg {
+                    LoopEvent::Message(msg)
+                } else {
+                    LoopEvent::Lagging
+                }
+            }),
+        )
+        .await;
 
-        let flip_layout = (now % (FLIP_LAYOUT * 2)) >= FLIP_LAYOUT;
-        let sidebar_offset = if flip_layout { 111 } else { 0 };
+        // Now update global state or the display, depending on the event.
 
-        // Clear the video memory.
+        match event {
+            Either::First(()) => {
+                let now = Instant::now().as_millis();
 
-        display.clear(BinaryColor::Off).unwrap();
+                // Determine which if the two layouts to use. The offset for the
+                // sidebar's icons is adjusted based on this value.
 
-        // Draw the side bar -- First draw the appropriate WiFi icon. If
-        // we're not yet connected or an error occurred, we flash the
-        // icon (by conditionally drawing it based on the time.)
+                let flip_layout = (now % (FLIP_LAYOUT * 2)) >= FLIP_LAYOUT;
+                let sidebar_offset = if flip_layout { 111 } else { 0 };
 
-        match wifi_state {
-            WifiState::Searching => {
-                let bmp = Image::new(
-                    &wifi_search_data,
-                    Point {
-                        x: sidebar_offset,
-                        y: 0,
-                    },
-                );
+                // Clear the video memory.
 
-                if (now % 1000) >= 500 {
-                    bmp.draw(&mut display).unwrap();
+                display.clear(BinaryColor::Off).unwrap();
+
+                // Draw the pump state.
+
+                if let Some(pump_msg) = pump_message(&pri_state, &sec_state) {
+                    let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
+
+                    Text::with_alignment(pump_msg, Point::new(64, 32), style, Alignment::Center)
+                        .draw(&mut display)
+                        .unwrap();
+                }
+
+                // Draw the side bar -- First draw the appropriate WiFi icon. If
+                // we're not yet connected or an error occurred, we flash the
+                // icon (by conditionally drawing it based on the time.)
+
+                match wifi_state {
+                    WifiState::Configuring | WifiState::Searching => {
+                        let bmp = Image::new(
+                            &wifi_search_data,
+                            Point {
+                                x: sidebar_offset,
+                                y: 0,
+                            },
+                        );
+
+                        if (now % 1000) >= 500 {
+                            bmp.draw(&mut display).unwrap();
+                        }
+                    }
+                    WifiState::AuthError => {
+                        let bmp = Image::new(
+                            &wifi_error_data,
+                            Point {
+                                x: sidebar_offset,
+                                y: 0,
+                            },
+                        );
+
+                        if (now % 500) >= 250 {
+                            bmp.draw(&mut display).unwrap();
+                        }
+                    }
+                    WifiState::Connected => {
+                        let bmp = Image::new(
+                            &wifi_data,
+                            Point {
+                                x: sidebar_offset,
+                                y: 0,
+                            },
+                        );
+
+                        bmp.draw(&mut display).unwrap();
+                    }
+                }
+
+                // Drawing the sidebar -- now draw the state of the server (whether it
+                // has a connected client.)
+
+                match server_state {
+                    ServerState::NoClient => Image::new(
+                        &no_client_data,
+                        Point {
+                            x: sidebar_offset,
+                            y: 20,
+                        },
+                    ),
+                    ServerState::Client => Image::new(
+                        &client_data,
+                        Point {
+                            x: sidebar_offset,
+                            y: 20,
+                        },
+                    ),
+                }
+                .draw(&mut display)
+                .unwrap();
+
+                // Copy the memory to the display.
+
+                display.flush().await.unwrap();
+            }
+            Either::Second(LoopEvent::Lagging) => {
+                defmt::warn!("display task lagging");
+            }
+            Either::Second(LoopEvent::Message(Message::PumpOn { stamp, pump })) => {
+                pump_updated = stamp;
+                match pump {
+                    Pump::Primary => pri_state = PumpState::On(stamp),
+                    Pump::Secondary => sec_state = PumpState::On(stamp),
                 }
             }
-            WifiState::AuthError => {
-                let bmp = Image::new(
-                    &wifi_error_data,
-                    Point {
-                        x: sidebar_offset,
-                        y: 0,
-                    },
-                );
-
-                if (now % 500) >= 250 {
-                    bmp.draw(&mut display).unwrap();
+            Either::Second(LoopEvent::Message(Message::PumpOff { stamp, pump })) => {
+                pump_updated = stamp;
+                match pump {
+                    Pump::Primary => pri_state = PumpState::Off(stamp),
+                    Pump::Secondary => sec_state = PumpState::Off(stamp),
                 }
             }
-            WifiState::Connected => {
-                let bmp = Image::new(
-                    &wifi_data,
-                    Point {
-                        x: sidebar_offset,
-                        y: 0,
-                    },
+            Either::Second(LoopEvent::Message(Message::WifiUpdate { state })) => {
+                wifi_state = state;
+            }
+            Either::Second(LoopEvent::Message(Message::ClientConnected { addr })) => {
+                server_state = ServerState::Client;
+                defmt::info!(
+                    "Client connected: {:02}.{:02}.{:02}.{:02}",
+                    (addr >> 24) & 0xFF,
+                    (addr >> 16) & 0xFF,
+                    (addr >> 8) & 0xFF,
+                    addr & 0xFF
                 );
-
-                bmp.draw(&mut display).unwrap();
+            }
+            Either::Second(LoopEvent::Message(Message::ClientDisconnected)) => {
+                server_state = ServerState::NoClient;
             }
         }
-
-        // Drawing the sidebar -- now draw the state of the server (whether it
-        // has a connected client.)
-
-        match server_state {
-            ServerState::NoClient => Image::new(
-                &no_client_data,
-                Point {
-                    x: sidebar_offset,
-                    y: 20,
-                },
-            ),
-            ServerState::Client => Image::new(
-                &client_data,
-                Point {
-                    x: sidebar_offset,
-                    y: 20,
-                },
-            ),
-        }
-        .draw(&mut display)
-        .unwrap();
-
-        // Copy the memory to the display.
-
-        display.flush().await.unwrap();
-
-        // Wait for the next tick.
-
-        tick.next().await;
     }
 }

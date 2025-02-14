@@ -22,23 +22,32 @@ embedded-graphics = "0.8"
 tinybmp = "0.6"
 embedded-hal = "1.0"
 embedded-hal-async = { version = "1.0"}
-embassy-futures = "0.1.1"
+embassy-futures = "0.1"
+futures = { version = "0.3", default-features = false, features = ["async-await"] }
 embedded-hal-bus = { version = "0.3", features = ["async"] }
 maybe-async-cfg = "=0.2.4"
+rand = { version = "0.8", default-features = false }
 
 [dependencies.embassy-executor]
-version = "0.7.0"
+version = "0.7"
 features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread",
 	    "executor-interrupt", "defmt"]
 
+[dependencies.embassy-sync]
+version = "0.6"
+features = ["defmt"]
+
 [dependencies.embassy-time]
-version = "0.4.0"
+version = "0.4"
 features = ["defmt", "defmt-timestamp-uptime"]
 
 [dependencies.embassy-rp]
-version = "0.3.0"
-features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl",
-	    "rp2040"]
+version = "0.3"
+features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040"]
+
+[dependencies.embassy-net]
+version = "0.6"
+features = ["tcp", "udp", "raw", "dhcpv4", "medium-ethernet"]
 
 [profile.release]
 debug = 2
