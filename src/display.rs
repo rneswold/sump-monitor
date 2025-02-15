@@ -16,8 +16,9 @@ use embedded_graphics::{
 use futures::future::FutureExt;
 use ssd1306::{
     mode::{BufferedGraphicsModeAsync, DisplayConfigAsync},
+    prelude::DisplayRotation,
     size::DisplaySize128x64,
-    Ssd1306Async,
+    I2CDisplayInterface, Ssd1306Async,
 };
 
 // Local representation of the state of a pump.
@@ -61,9 +62,16 @@ fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
 // to update internal state which determines what goes on the display.
 
 #[embassy_executor::task]
-pub async fn task(mut display: Oled, mut rx: SysSubscriber) -> ! {
+pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
     use embassy_time::{Duration, Instant, Ticker};
     use tinybmp::Bmp;
+
+    let mut display = Ssd1306Async::new(
+        I2CDisplayInterface::new(i2c),
+        DisplaySize128x64,
+        DisplayRotation::Rotate0,
+    )
+    .into_buffered_graphics_mode();
 
     // These assignments create the bitmaps. The yse of `.unwrap()` is safe
     // here because the bitmap data is compiled into the executable and it

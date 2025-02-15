@@ -18,10 +18,6 @@ use embassy_sync::{
     blocking_mutex::raw::NoopRawMutex,
     pubsub::{publisher::Publisher, subscriber::Subscriber, PubSubChannel},
 };
-use rand::RngCore;
-use ssd1306::{
-    prelude::DisplayRotation, size::DisplaySize128x64, I2CDisplayInterface, Ssd1306Async,
-};
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -100,19 +96,14 @@ async fn main(spawner: Spawner) {
     // hardware to display the state of the sump monitor.
 
     {
-        let display = {
-            let mut cfg = i2c::Config::default();
+        let mut cfg = i2c::Config::default();
 
-            cfg.frequency = 400_000;
+        cfg.frequency = 400_000;
 
-            let interface =
-                I2CDisplayInterface::new(I2c::new_async(p.I2C1, p.PIN_27, p.PIN_26, I2cIrqs, cfg));
-
-            Ssd1306Async::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
-                .into_buffered_graphics_mode()
-        };
-
-        unwrap!(spawner.spawn(display::task(display, sys_chan.subscriber().unwrap())));
+        unwrap!(spawner.spawn(display::task(
+            I2c::new_async(p.I2C1, p.PIN_27, p.PIN_26, I2cIrqs, cfg),
+            sys_chan.subscriber().unwrap()
+        )));
     }
 
     // This section initializes the CYW43 Wifi hardware and returns a data
