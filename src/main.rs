@@ -5,10 +5,8 @@ use cyw43::JoinOptions;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
 use defmt::unwrap;
 use embassy_executor::Spawner;
-use embassy_net::{DhcpConfig, StackResources};
 use embassy_rp::{
     bind_interrupts,
-    clocks::RoscRng,
     gpio::{Level, Output},
     i2c::{self, I2c},
     peripherals::{DMA_CH0, I2C1, PIO0},
@@ -69,6 +67,7 @@ type SysSubscriber = Subscriber<'static, NoopRawMutex, Message, 8, 1, 1>;
 
 mod display;
 mod heartbeat;
+mod network;
 
 // This project uses the CYW4349 WiFi interface. This function defines the
 // background task that manages the hardware.
@@ -77,11 +76,6 @@ mod heartbeat;
 async fn cyw43_task(
     runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>,
 ) -> ! {
-    runner.run().await
-}
-
-#[embassy_executor::task]
-async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
     runner.run().await
 }
 
@@ -147,22 +141,7 @@ async fn main(spawner: Spawner) {
     // sockets: 1 socket is used for DHCP and the other will be for incoming
     // client connections.
 
-    let (stack, runner) = {
-        static RESOURCES: StaticCell<StackResources<2>> = StaticCell::new();
-
-        let mut rng = RoscRng;
-        let seed = rng.next_u64();
-        let config = embassy_net::Config::dhcpv4(DhcpConfig::default());
-
-        embassy_net::new(
-            net_device,
-            config,
-            RESOURCES.init(StackResources::new()),
-            seed,
-        )
-    };
-    
-    unwrap!(spawner.spawn(net_task(runner)));
+    let stack = network::start(&spawner, net_device);
 
     match control
         .join(WIFI_NETWORK, JoinOptions::new(WIFI_PASSWORD))
