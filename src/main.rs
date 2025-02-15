@@ -3,11 +3,11 @@
 
 use cyw43::JoinOptions;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
-use defmt::unwrap;
+use defmt::{unwrap, Format};
 use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
-    gpio::{Level, Output},
+    gpio::{Input, Level, Output, Pull},
     i2c::{self, I2c},
     peripherals::{DMA_CH0, I2C1, PIO0},
     pio::{self, Pio},
@@ -43,7 +43,7 @@ enum ServerState {
     Client,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Format)]
 enum Pump {
     Primary,
     Secondary,
@@ -61,13 +61,14 @@ enum Message {
 // Data types used to manage the PubSub channel. Since all tasks will be
 // on one executor, it is safe to use the `NoopRawMutex` for synchronization.
 
-type SysEvents = PubSubChannel<NoopRawMutex, Message, 8, 1, 1>;
-type SysPublisher = Publisher<'static, NoopRawMutex, Message, 8, 1, 1>;
-type SysSubscriber = Subscriber<'static, NoopRawMutex, Message, 8, 1, 1>;
+type SysEvents = PubSubChannel<NoopRawMutex, Message, 8, 1, 2>;
+type SysPublisher = Publisher<'static, NoopRawMutex, Message, 8, 1, 2>;
+type SysSubscriber = Subscriber<'static, NoopRawMutex, Message, 8, 1, 2>;
 
 mod display;
 mod heartbeat;
 mod network;
+mod pump_monitor;
 
 // This project uses the CYW4349 WiFi interface. This function defines the
 // background task that manages the hardware.
@@ -154,6 +155,18 @@ async fn main(spawner: Spawner) {
             defmt::error!("failed to join network");
         }
     }
+
+    unwrap!(spawner.spawn(pump_monitor::task(
+        Input::new(p.PIN_11, Pull::Up),
+        Pump::Primary,
+        sys_chan.publisher().unwrap()
+    )));
+
+    unwrap!(spawner.spawn(pump_monitor::task(
+        Input::new(p.PIN_15, Pull::Up),
+        Pump::Secondary,
+        sys_chan.publisher().unwrap()
+    )));
 
     unwrap!(spawner.spawn(heartbeat::task(control)));
 }
