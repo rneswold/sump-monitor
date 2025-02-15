@@ -100,7 +100,6 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
     let mut server_state = ServerState::NoClient;
     let mut pri_state = PumpState::Unknown;
     let mut sec_state = PumpState::Unknown;
-    let mut pump_updated: u64 = 0;
 
     // Infinite loop. This task never exits.
 
@@ -220,14 +219,12 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 defmt::warn!("display task lagging");
             }
             Either::Second(LoopEvent::Message(Message::PumpOn { stamp, pump })) => {
-                pump_updated = stamp;
                 match pump {
                     Pump::Primary => pri_state = PumpState::On(stamp),
                     Pump::Secondary => sec_state = PumpState::On(stamp),
                 }
             }
             Either::Second(LoopEvent::Message(Message::PumpOff { stamp, pump })) => {
-                pump_updated = stamp;
                 match pump {
                     Pump::Primary => pri_state = PumpState::Off(stamp),
                     Pump::Secondary => sec_state = PumpState::Off(stamp),
