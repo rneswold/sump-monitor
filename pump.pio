@@ -1,0 +1,34 @@
+.pio_version RP2040
+
+; Monitors the state of a sump pump.
+;
+; The sump pump itself runs standalone. However, one of the supply
+; wires is looped through a current switch so when the sump pump
+; becomes active, a relay is activated which shorts the input pin
+; to ground.
+
+.program pump
+
+.fifo rx
+.in 32 left
+.set 1
+
+.define     DELAY   19              ; will provide 10ms delay
+
+.wrap_target
+pump_idle:
+    wait    0 pin 0         [DELAY] ; wait until the pump is active
+    jmp     pin, pump_idle  [DELAY]
+    jmp     pin, pump_idle  [DELAY]
+    set     x, 1
+    mov     isr, x
+    push
+pump_active:
+    wait    1 pin 0         [DELAY]
+    jmp     pin, skip       [DELAY]
+    jmp     pump_active
+skip:
+    set     x, 0
+    mov     isr, x
+    push
+.wrap
