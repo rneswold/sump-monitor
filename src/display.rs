@@ -218,18 +218,14 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
             Either::Second(LoopEvent::Lagging) => {
                 defmt::warn!("display task lagging");
             }
-            Either::Second(LoopEvent::Message(Message::PumpOn { stamp, pump })) => {
-                match pump {
-                    Pump::Primary => pri_state = PumpState::On(stamp),
-                    Pump::Secondary => sec_state = PumpState::On(stamp),
-                }
-            }
-            Either::Second(LoopEvent::Message(Message::PumpOff { stamp, pump })) => {
-                match pump {
-                    Pump::Primary => pri_state = PumpState::Off(stamp),
-                    Pump::Secondary => sec_state = PumpState::Off(stamp),
-                }
-            }
+            Either::Second(LoopEvent::Message(Message::PumpOn { stamp, pump })) => match pump {
+                Pump::Primary => pri_state = PumpState::On(stamp),
+                Pump::Secondary => sec_state = PumpState::On(stamp),
+            },
+            Either::Second(LoopEvent::Message(Message::PumpOff { stamp, pump })) => match pump {
+                Pump::Primary => pri_state = PumpState::Off(stamp),
+                Pump::Secondary => sec_state = PumpState::Off(stamp),
+            },
             Either::Second(LoopEvent::Message(Message::WifiUpdate { state })) => {
                 wifi_state = state;
             }
