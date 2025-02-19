@@ -48,6 +48,12 @@ enum Pump {
     Primary,
     Secondary,
 }
+// Local representation of the state of a pump.
+enum PumpState {
+    Off(u64),
+    On(u64),
+    Unknown,
+}
 
 #[derive(Clone)]
 enum Message {

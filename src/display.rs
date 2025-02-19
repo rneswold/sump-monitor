@@ -1,5 +1,4 @@
-use super::{Message, Pump, ServerState, SysSubscriber, WifiState};
-use display_interface_i2c::I2CInterface;
+use super::{Message, Pump, PumpState, ServerState, SysSubscriber, WifiState};
 use embassy_futures::select::Either;
 use embassy_rp::{
     i2c::{Async, I2c},
@@ -20,13 +19,6 @@ use ssd1306::{
     size::DisplaySize128x64,
     I2CDisplayInterface, Ssd1306Async,
 };
-
-// Local representation of the state of a pump.
-enum PumpState {
-    Off(u64),
-    On(u64),
-    Unknown,
-}
 
 enum LoopEvent {
     Lagging,
