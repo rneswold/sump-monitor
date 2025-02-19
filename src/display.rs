@@ -15,7 +15,7 @@ use embedded_graphics::{
 };
 use futures::future::FutureExt;
 use ssd1306::{
-    mode::{BufferedGraphicsModeAsync, DisplayConfigAsync},
+    mode::DisplayConfigAsync,
     prelude::DisplayRotation,
     size::DisplaySize128x64,
     I2CDisplayInterface, Ssd1306Async,
@@ -38,14 +38,6 @@ enum LoopEvent {
 // When this number of milliseconds has elapsed, we use a different layout.
 
 const FLIP_LAYOUT: u64 = 10_000;
-
-// Define `Oled` to be the type that manages the SSD1306-based OLED display.
-
-type Oled = Ssd1306Async<
-    I2CInterface<I2c<'static, I2C1, Async>>,
-    DisplaySize128x64,
-    BufferedGraphicsModeAsync<DisplaySize128x64>,
->;
 
 fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
     match (pri, sec) {
