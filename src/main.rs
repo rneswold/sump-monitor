@@ -67,14 +67,15 @@ enum Message {
 // Data types used to manage the PubSub channel. Since all tasks will be
 // on one executor, it is safe to use the `NoopRawMutex` for synchronization.
 
-type SysEvents = PubSubChannel<NoopRawMutex, Message, 8, 1, 2>;
-type SysPublisher = Publisher<'static, NoopRawMutex, Message, 8, 1, 2>;
-type SysSubscriber = Subscriber<'static, NoopRawMutex, Message, 8, 1, 2>;
+type SysEvents = PubSubChannel<NoopRawMutex, Message, 8, 2, 3>;
+type SysPublisher = Publisher<'static, NoopRawMutex, Message, 8, 2, 3>;
+type SysSubscriber = Subscriber<'static, NoopRawMutex, Message, 8, 2, 3>;
 
 mod display;
 mod heartbeat;
 mod network;
 mod pump_monitor;
+mod service;
 
 // This project uses the CYW4349 WiFi interface. This function defines the
 // background task that manages the hardware.
@@ -161,6 +162,12 @@ async fn main(spawner: Spawner) {
             defmt::error!("failed to join network");
         }
     }
+
+    unwrap!(spawner.spawn(service::task(
+        stack,
+        sys_chan.publisher().unwrap(),
+        sys_chan.subscriber().unwrap()
+    )));
 
     unwrap!(spawner.spawn(pump_monitor::task(
         Input::new(p.PIN_11, Pull::Up),
