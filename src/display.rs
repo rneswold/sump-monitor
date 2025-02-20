@@ -1,10 +1,8 @@
 use super::{Message, Pump, PumpState, ServerState, SysSubscriber, WifiState};
-use embassy_futures::select::Either;
 use embassy_rp::{
     i2c::{Async, I2c},
     peripherals::I2C1,
 };
-use embassy_sync::pubsub::WaitResult;
 use embedded_graphics::{
     image::Image,
     mono_font::{ascii::FONT_9X18_BOLD, MonoTextStyle},
@@ -13,12 +11,6 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 use futures::future::FutureExt;
-use ssd1306::{
-    mode::DisplayConfigAsync,
-    prelude::DisplayRotation,
-    size::DisplaySize128x64,
-    I2CDisplayInterface, Ssd1306Async,
-};
 
 enum LoopEvent {
     Lagging,
@@ -48,6 +40,10 @@ fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
 #[embassy_executor::task]
 pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
     use embassy_time::{Duration, Instant, Ticker};
+    use ssd1306::{
+        mode::DisplayConfigAsync, prelude::DisplayRotation, size::DisplaySize128x64,
+        I2CDisplayInterface, Ssd1306Async,
+    };
     use tinybmp::Bmp;
 
     let mut display = Ssd1306Async::new(
@@ -88,6 +84,9 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
     // Infinite loop. This task never exits.
 
     loop {
+        use embassy_futures::select::Either;
+        use embassy_sync::pubsub::WaitResult;
+
         // Wait for either a tick or a message from the PubSub channel.
         // Convert either event into a `LoopEvent`.
 
