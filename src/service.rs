@@ -34,7 +34,10 @@
 // pump monitor task. If there aren't any state reports (because the system was
 // recently rebooted), the client will receive an immediate "keepalive" message.
 
-use super::{Message, Pump, PumpState, SysPublisher, SysSubscriber};
+use super::{
+    types::{Message, Pump, PumpState},
+    SysPublisher, SysSubscriber,
+};
 use embassy_futures::select::{select, Either};
 use embassy_net::{
     tcp::{Error, TcpSocket},

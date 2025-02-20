@@ -1,5 +1,7 @@
-use super::{Message, Pump, SysPublisher};
-use defmt::info;
+use super::{
+    types::{Message, Pump},
+    SysPublisher,
+};
 use embassy_rp::gpio::{Input, Level};
 use embassy_time::{Duration, Instant, Timer};
 

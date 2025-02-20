@@ -3,7 +3,7 @@
 
 use cyw43::JoinOptions;
 use cyw43_pio::{PioSpi, DEFAULT_CLOCK_DIVIDER};
-use defmt::{unwrap, Format};
+use defmt::unwrap;
 use embassy_executor::Spawner;
 use embassy_rp::{
     bind_interrupts,
@@ -30,52 +30,19 @@ bind_interrupts!(struct I2cIrqs {
     I2C1_IRQ => i2c::InterruptHandler<I2C1>;
 });
 
-#[derive(Clone)]
-enum WifiState {
-    Searching,
-    AuthError,
-    Configuring,
-    Connected,
-}
-
-enum ServerState {
-    NoClient,
-    Client,
-}
-
-#[derive(Copy, Clone, Format)]
-enum Pump {
-    Primary,
-    Secondary,
-}
-// Local representation of the state of a pump.
-enum PumpState {
-    Off(u64),
-    On(u64),
-    Unknown,
-}
-
-#[derive(Clone)]
-enum Message {
-    PumpOn { stamp: u64, pump: Pump },
-    PumpOff { stamp: u64, pump: Pump },
-    ClientConnected { addr: u32 },
-    ClientDisconnected,
-    WifiUpdate { state: WifiState },
-}
-
 // Data types used to manage the PubSub channel. Since all tasks will be
 // on one executor, it is safe to use the `NoopRawMutex` for synchronization.
 
-type SysEvents = PubSubChannel<NoopRawMutex, Message, 8, 2, 3>;
-type SysPublisher = Publisher<'static, NoopRawMutex, Message, 8, 2, 3>;
-type SysSubscriber = Subscriber<'static, NoopRawMutex, Message, 8, 2, 3>;
+type SysEvents = PubSubChannel<NoopRawMutex, types::Message, 8, 2, 3>;
+type SysPublisher = Publisher<'static, NoopRawMutex, types::Message, 8, 2, 3>;
+type SysSubscriber = Subscriber<'static, NoopRawMutex, types::Message, 8, 2, 3>;
 
 mod display;
 mod heartbeat;
 mod network;
 mod pump_monitor;
 mod service;
+mod types;
 
 // This project uses the CYW4349 WiFi interface. This function defines the
 // background task that manages the hardware.
@@ -171,13 +138,13 @@ async fn main(spawner: Spawner) {
 
     unwrap!(spawner.spawn(pump_monitor::task(
         Input::new(p.PIN_11, Pull::Up),
-        Pump::Primary,
+        types::Pump::Primary,
         sys_chan.publisher().unwrap()
     )));
 
     unwrap!(spawner.spawn(pump_monitor::task(
         Input::new(p.PIN_15, Pull::Up),
-        Pump::Secondary,
+        types::Pump::Secondary,
         sys_chan.publisher().unwrap()
     )));
 

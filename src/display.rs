@@ -1,4 +1,7 @@
-use super::{Message, Pump, PumpState, ServerState, SysSubscriber, WifiState};
+use super::{
+    types::{Message, Pump, PumpState, ServerState, WifiState},
+    SysSubscriber,
+};
 use embassy_rp::{
     i2c::{Async, I2c},
     peripherals::I2C1,
