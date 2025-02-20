@@ -29,7 +29,7 @@ enum LoopEvent {
 // time -- especially when the image is static, like this application's.
 // When this number of milliseconds has elapsed, we use a different layout.
 
-const FLIP_LAYOUT: u64 = 10_000;
+const FLIP_LAYOUT: u64 = 1_000 * 60 * 15;
 
 fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
     match (pri, sec) {
