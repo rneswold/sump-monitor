@@ -115,7 +115,7 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 // sidebar's icons is adjusted based on this value.
 
                 let flip_layout = (now % (FLIP_LAYOUT * 2)) >= FLIP_LAYOUT;
-                let sidebar_offset = if flip_layout { 111 } else { 0 };
+                let sidebar_offset = if flip_layout { 96 } else { 0 };
 
                 // Clear the video memory.
 
@@ -126,7 +126,7 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 if let Some(pump_msg) = pump_message(&pri_state, &sec_state) {
                     let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
 
-                    Text::with_alignment(pump_msg, Point::new(64, 32), style, Alignment::Center)
+                    Text::with_alignment(pump_msg, Point::new(if flip_layout { 48 } else { 80 }, 32), style, Alignment::Center)
                         .draw(&mut display)
                         .unwrap();
                 }
@@ -138,16 +138,14 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 match wifi_state {
                     WifiState::Configuring | WifiState::Searching => {
                         let bmp = Image::new(
-                            &wifi_search_data,
+                            if (now % 1000) >= 500 { &wifi_search_data } else { &wifi_data },
                             Point {
                                 x: sidebar_offset,
                                 y: 0,
                             },
                         );
 
-                        if (now % 1000) >= 500 {
-                            bmp.draw(&mut display).unwrap();
-                        }
+                        bmp.draw(&mut display).unwrap();
                     }
                     WifiState::AuthError => {
                         let bmp = Image::new(
@@ -183,14 +181,14 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                         &no_client_data,
                         Point {
                             x: sidebar_offset,
-                            y: 20,
+                            y: 32,
                         },
                     ),
                     ServerState::Client => Image::new(
                         &client_data,
                         Point {
                             x: sidebar_offset,
-                            y: 20,
+                            y: 32,
                         },
                     ),
                 }
