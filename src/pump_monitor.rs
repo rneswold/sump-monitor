@@ -15,7 +15,7 @@ pub async fn task(mut pin: Input<'static>, pump: Pump, tx: SysPublisher) -> ! {
     loop {
         pin.wait_for_any_edge().await;
 
-        let stamp = Instant::now().as_millis();
+        let stamp = Instant::now().as_micros();
 
         Timer::after(Duration::from_millis(30)).await;
 
