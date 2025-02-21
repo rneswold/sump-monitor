@@ -1,7 +1,7 @@
 use cyw43::Control;
 use embassy_time::{Duration, Ticker};
 
-const DELAY: Duration = Duration::from_millis(100);
+const DELAY: Duration = Duration::from_millis(50);
 
 // Runs a task that is used as a heartbeat indicator. Eventually, all
 // background tasks will need to periodically notify this task to prove
@@ -13,11 +13,11 @@ const DELAY: Duration = Duration::from_millis(100);
 #[embassy_executor::task]
 pub async fn task(mut control: Control<'static>) -> ! {
     let mut ticker = Ticker::every(DELAY);
-    let mut state = false;
+    let mut state = 0u32;
 
     loop {
-        control.gpio_set(0, state).await;
-        state = !state;
+        control.gpio_set(0, state == 0).await;
+        state = (state + 1) % 20;
         ticker.next().await;
     }
 }
