@@ -1,13 +1,5 @@
 use defmt::Format;
 
-#[derive(Clone)]
-pub enum WifiState {
-    Searching,
-    AuthError,
-    Configuring,
-    Connected,
-}
-
 pub enum ServerState {
     NoClient,
     Client,
@@ -31,5 +23,4 @@ pub enum Message {
     PumpOff { stamp: u64, pump: Pump },
     ClientConnected { addr: u32 },
     ClientDisconnected,
-    WifiUpdate { state: WifiState },
 }

@@ -1,5 +1,5 @@
 use super::{
-    types::{Message, Pump, PumpState, ServerState, WifiState},
+    types::{Message, Pump, PumpState, ServerState},
     SysSubscriber,
 };
 use embassy_rp::{
@@ -41,7 +41,11 @@ fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
 // to update internal state which determines what goes on the display.
 
 #[embassy_executor::task]
-pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
+pub async fn task(
+    stack: embassy_net::Stack<'static>,
+    i2c: I2c<'static, I2C1, Async>,
+    mut rx: SysSubscriber,
+) -> ! {
     use embassy_time::{Duration, Instant, Ticker};
     use ssd1306::{
         mode::DisplayConfigAsync, prelude::DisplayRotation, size::DisplaySize128x64,
@@ -56,14 +60,12 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
     )
     .into_buffered_graphics_mode();
 
-    // These assignments create the bitmaps. The yse of `.unwrap()` is safe
+    // These assignments create the bitmaps. The use of `.unwrap()` is safe
     // here because the bitmap data is compiled into the executable and it
     // didn't fail while developing the code, so it can't fail in the
     // production version.
 
     let wifi_data = Bmp::from_slice(include_bytes!("assets/wifi.bmp")).unwrap();
-    let wifi_search_data = Bmp::from_slice(include_bytes!("assets/wifi_search.bmp")).unwrap();
-    let wifi_error_data = Bmp::from_slice(include_bytes!("assets/wifi_error.bmp")).unwrap();
     let client_data = Bmp::from_slice(include_bytes!("assets/client.bmp")).unwrap();
     let no_client_data = Bmp::from_slice(include_bytes!("assets/noclient.bmp")).unwrap();
 
@@ -79,7 +81,6 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
     // The task's "global" state. These variables are updated by the contents
     // of the messages from the PubSub channel.
 
-    let mut wifi_state = WifiState::Searching;
     let mut server_state = ServerState::NoClient;
     let mut pri_state = PumpState::Unknown;
     let mut sec_state = PumpState::Unknown;
@@ -115,7 +116,7 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 // sidebar's icons is adjusted based on this value.
 
                 let flip_layout = (now % (FLIP_LAYOUT * 2)) >= FLIP_LAYOUT;
-                let sidebar_offset = if flip_layout { 96 } else { 0 };
+                let sidebar_offset = if flip_layout { 104 } else { 0 };
 
                 // Clear the video memory.
 
@@ -126,51 +127,30 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 if let Some(pump_msg) = pump_message(&pri_state, &sec_state) {
                     let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
 
-                    Text::with_alignment(pump_msg, Point::new(if flip_layout { 48 } else { 80 }, 32), style, Alignment::Center)
-                        .draw(&mut display)
-                        .unwrap();
+                    Text::with_alignment(
+                        pump_msg,
+                        Point::new(if flip_layout { 52 } else { 76 }, 32),
+                        style,
+                        Alignment::Center,
+                    )
+                    .draw(&mut display)
+                    .unwrap();
                 }
 
                 // Draw the side bar -- First draw the appropriate WiFi icon. If
                 // we're not yet connected or an error occurred, we flash the
                 // icon (by conditionally drawing it based on the time.)
 
-                match wifi_state {
-                    WifiState::Configuring | WifiState::Searching => {
-                        let bmp = Image::new(
-                            if (now % 1000) >= 500 { &wifi_search_data } else { &wifi_data },
-                            Point {
-                                x: sidebar_offset,
-                                y: 0,
-                            },
-                        );
+                if stack.is_config_up() || (now % 1000) >= 500 {
+                    let bmp = Image::new(
+                        &wifi_data,
+                        Point {
+                            x: sidebar_offset,
+                            y: 4,
+                        },
+                    );
 
-                        bmp.draw(&mut display).unwrap();
-                    }
-                    WifiState::AuthError => {
-                        let bmp = Image::new(
-                            &wifi_error_data,
-                            Point {
-                                x: sidebar_offset,
-                                y: 0,
-                            },
-                        );
-
-                        if (now % 500) >= 250 {
-                            bmp.draw(&mut display).unwrap();
-                        }
-                    }
-                    WifiState::Connected => {
-                        let bmp = Image::new(
-                            &wifi_data,
-                            Point {
-                                x: sidebar_offset,
-                                y: 0,
-                            },
-                        );
-
-                        bmp.draw(&mut display).unwrap();
-                    }
+                    bmp.draw(&mut display).unwrap();
                 }
 
                 // Drawing the sidebar -- now draw the state of the server (whether it
@@ -181,14 +161,14 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                         &no_client_data,
                         Point {
                             x: sidebar_offset,
-                            y: 32,
+                            y: 36,
                         },
                     ),
                     ServerState::Client => Image::new(
                         &client_data,
                         Point {
                             x: sidebar_offset,
-                            y: 32,
+                            y: 36,
                         },
                     ),
                 }
@@ -210,9 +190,6 @@ pub async fn task(i2c: I2c<'static, I2C1, Async>, mut rx: SysSubscriber) -> ! {
                 Pump::Primary => pri_state = PumpState::Off(stamp),
                 Pump::Secondary => sec_state = PumpState::Off(stamp),
             },
-            Either::Second(LoopEvent::Message(Message::WifiUpdate { state })) => {
-                wifi_state = state;
-            }
             Either::Second(LoopEvent::Message(Message::ClientConnected { addr })) => {
                 server_state = ServerState::Client;
                 defmt::info!(

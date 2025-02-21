@@ -61,20 +61,6 @@ async fn main(spawner: Spawner) {
 
     let sys_chan = SYS_CHAN.init(SysEvents::new());
 
-    // This section initializes and spawns a task that uses the SDD1306 OLED
-    // hardware to display the state of the sump monitor.
-
-    {
-        let mut cfg = i2c::Config::default();
-
-        cfg.frequency = 400_000;
-
-        unwrap!(spawner.spawn(display::task(
-            I2c::new_async(p.I2C1, p.PIN_27, p.PIN_26, I2cIrqs, cfg),
-            sys_chan.subscriber().unwrap()
-        )));
-    }
-
     // This section initializes the CYW43 Wifi hardware and returns a data
     // type that allows us to control the LED.
 
@@ -117,6 +103,21 @@ async fn main(spawner: Spawner) {
     // client connections.
 
     let stack = network::start(&spawner, net_device);
+
+    // This section initializes and spawns a task that uses the SDD1306 OLED
+    // hardware to display the state of the sump monitor.
+
+    {
+        let mut cfg = i2c::Config::default();
+
+        cfg.frequency = 400_000;
+
+        unwrap!(spawner.spawn(display::task(
+            stack.clone(),
+            I2c::new_async(p.I2C1, p.PIN_27, p.PIN_26, I2cIrqs, cfg),
+            sys_chan.subscriber().unwrap()
+        )));
+    }
 
     match control
         .join(WIFI_NETWORK, JoinOptions::new(WIFI_PASSWORD))
