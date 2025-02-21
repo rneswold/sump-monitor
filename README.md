@@ -1,7 +1,11 @@
 # drmem-drv-sump
 
-Simple sump pump monitoring task for use with `drmem` control system.
-This driver uses the RaspberryPi GPIO to monitor the state of a sump pump.
+## Introduction
+
+This project contains the source for a RaspberryPi Pico W
+microcontroller to be used in monitoring sump pumps. It uses its GPIO
+to read the state of the pumps and has a WiFi interface so a DrMem
+node can connect and monitor them.
 
 A major requirement is the sump pump cannot be affected by the presence or
 absense of the RaspberryPi. This was accomplished by using a "current switch"

@@ -1,0 +1,60 @@
+[package]
+name = "sump_monitor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+defmt = "0.3"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+static_cell = "2.1"
+portable-atomic = { version = "1.5", features = ["critical-section"] }
+cortex-m = { version = "0.7.6", features = ["inline-asm"] }
+cortex-m-rt = "0.7"
+cyw43 = { version = "0.3", features = [] }
+cyw43-pio = { version = "0.3", features = [] }
+
+ssd1306 = { version = "0.9", features = ["async"] }
+display-interface = "0.5"
+display-interface-i2c = "0.5"
+embedded-graphics = "0.8"
+tinybmp = "0.6"
+embedded-hal = "1.0"
+embedded-hal-async = { version = "1.0"}
+embassy-futures = "0.1"
+futures = { version = "0.3", default-features = false, features = ["async-await"] }
+embedded-hal-bus = { version = "0.3", features = ["async"] }
+maybe-async-cfg = "=0.2.4"
+rand = { version = "0.8", default-features = false }
+
+[dependencies.embassy-executor]
+version = "0.7"
+features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread",
+	    "executor-interrupt", "defmt"]
+
+[dependencies.embassy-sync]
+version = "0.6"
+features = []
+
+[dependencies.embassy-time]
+version = "0.4"
+features = ["defmt-timestamp-uptime"]
+
+[dependencies.embassy-rp]
+version = "0.3"
+features = ["unstable-pac", "time-driver", "critical-section-impl", "rp2040"]
+
+[dependencies.embassy-net]
+version = "0.6"
+features = ["tcp", "udp", "dhcpv4", "medium-ethernet"]
+
+[profile.release]
+debug = 2
+lto = true
+opt-level = 'z'
+
+[profile.dev]
+debug = 2
+lto = true
+opt-level = "z"
