@@ -35,19 +35,19 @@ features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread",
 
 [dependencies.embassy-sync]
 version = "0.6"
-features = ["defmt"]
+features = []
 
 [dependencies.embassy-time]
 version = "0.4"
-features = ["defmt", "defmt-timestamp-uptime"]
+features = ["defmt-timestamp-uptime"]
 
 [dependencies.embassy-rp]
 version = "0.3"
-features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl", "rp2040"]
+features = ["unstable-pac", "time-driver", "critical-section-impl", "rp2040"]
 
 [dependencies.embassy-net]
 version = "0.6"
-features = ["tcp", "udp", "raw", "dhcpv4", "medium-ethernet"]
+features = ["tcp", "udp", "dhcpv4", "medium-ethernet"]
 
 [profile.release]
 debug = 2
