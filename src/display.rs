@@ -44,6 +44,80 @@ fn pump_message(pri: &PumpState, sec: &PumpState) -> Option<&'static str> {
     }
 }
 
+async fn report_pump_state(
+    display: &mut impl DrawTarget<Color = BinaryColor>,
+    center: i32,
+    pri: &PumpState,
+    sec: &PumpState,
+) -> bool {
+    if let Some(pump_msg) = pump_message(pri, sec) {
+        let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
+        let _ = Text::with_alignment(pump_msg, Point::new(center, 32), style, Alignment::Center)
+            .draw(display);
+
+        true
+    } else {
+        false
+    }
+}
+
+async fn report_wifi_state(
+    display: &mut impl DrawTarget<Color = BinaryColor>,
+    center: i32,
+    now: u64,
+    wifi: &WiFiConfig,
+) -> bool {
+    let style = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
+
+    // If the pumps are off, we can display the WiFi address
+    // (if we have one.)
+
+    match wifi {
+        WiFiConfig::Connected { addr, stamp } => {
+            if now - stamp <= 10_000 {
+                use core::fmt::Write;
+                use heapless::String;
+
+                let mut text = String::<32>::new();
+                let _ = write!(
+                    text,
+                    "WiFi Address:\n{}.{}.{}.{}",
+                    (addr >> 24) & 0xFF,
+                    (addr >> 16) & 0xFF,
+                    (addr >> 8) & 0xFF,
+                    addr & 0xFF
+                );
+                let _ = Text::with_alignment(
+                    text.as_str(),
+                    Point::new(center, 27),
+                    style,
+                    Alignment::Center,
+                )
+                .draw(display);
+
+                true
+            } else {
+                false
+            }
+        }
+        WiFiConfig::Disconnected { stamp } => {
+            if now - stamp <= 10_000 {
+                let _ = Text::with_alignment(
+                    "No WiFi\nconnection",
+                    Point::new(center, 27),
+                    style,
+                    Alignment::Center,
+                )
+                .draw(display);
+
+                true
+            } else {
+                false
+            }
+        }
+    }
+}
+
 // This task is responsible for updating the OLED display. It has a `Ticker`
 // which fires every 1/4 second. This is used to blink icons, if necessary.
 // It also waits for messages from the PubSub channel. The messages are used
@@ -141,62 +215,8 @@ pub async fn task(
                     // precedence. If the pumps are off, then we can display
                     // other, less-interesting messages.
 
-                    if let Some(pump_msg) = pump_message(&pri_state, &sec_state) {
-                        let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
-
-                        Text::with_alignment(
-                            pump_msg,
-                            Point::new(center, 32),
-                            style,
-                            Alignment::Center,
-                        )
-                        .draw(&mut display)
-                        .unwrap();
-                    } else {
-                        let style = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
-
-                        // If the pumps are off, we can display the WiFi address
-                        // (if we have one.)
-
-                        match wifi_config {
-                            WiFiConfig::Connected { addr, stamp } => {
-                                if now - stamp <= 10_000 {
-                                    use core::fmt::Write;
-                                    use heapless::String;
-
-                                    let mut text = String::<32>::new();
-                                    let _ = write!(
-                                        text,
-                                        "WiFi Address:\n{}.{}.{}.{}",
-                                        (addr >> 24) & 0xFF,
-                                        (addr >> 16) & 0xFF,
-                                        (addr >> 8) & 0xFF,
-                                        addr & 0xFF
-                                    );
-
-                                    Text::with_alignment(
-                                        text.as_str(),
-                                        Point::new(center, 27),
-                                        style,
-                                        Alignment::Center,
-                                    )
-                                    .draw(&mut display)
-                                    .unwrap();
-                                }
-                            }
-                            WiFiConfig::Disconnected { stamp } => {
-                                if now - stamp <= 10_000 {
-                                    Text::with_alignment(
-                                        "No WiFi\nconnection",
-                                        Point::new(center, 27),
-                                        style,
-                                        Alignment::Center,
-                                    )
-                                    .draw(&mut display)
-                                    .unwrap();
-                                }
-                            }
-                        }
+                    if !report_pump_state(&mut display, center, &pri_state, &sec_state).await {
+                        report_wifi_state(&mut display, center, now, &wifi_config).await;
                     }
                 }
 
