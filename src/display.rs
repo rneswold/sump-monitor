@@ -8,7 +8,10 @@ use embassy_rp::{
 };
 use embedded_graphics::{
     image::Image,
-    mono_font::{ascii::FONT_9X18_BOLD, MonoTextStyle},
+    mono_font::{
+        ascii::{FONT_7X13_BOLD, FONT_9X18_BOLD},
+        MonoTextStyle,
+    },
     pixelcolor::BinaryColor,
     prelude::*,
     text::{Alignment, Text},
@@ -18,6 +21,12 @@ use futures::future::FutureExt;
 enum LoopEvent {
     Lagging,
     Message(Message),
+}
+
+#[derive(PartialEq)]
+enum WiFiConfig {
+    Connected { addr: u32, stamp: u64 },
+    Disconnected { stamp: u64 },
 }
 
 // Determines the amount of time to use a layout. OLEDs can get dim over
@@ -84,6 +93,7 @@ pub async fn task(
     let mut server_state = ServerState::NoClient;
     let mut pri_state = PumpState::Unknown;
     let mut sec_state = PumpState::Unknown;
+    let mut wifi_config = WiFiConfig::Disconnected { stamp: 0 };
 
     // Infinite loop. This task never exits.
 
@@ -122,19 +132,72 @@ pub async fn task(
 
                 display.clear(BinaryColor::Off).unwrap();
 
-                // Draw the pump state.
+                // Draw any text that needs to be displayed.
 
-                if let Some(pump_msg) = pump_message(&pri_state, &sec_state) {
-                    let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
+                {
+                    let center = if flip_layout { 52 } else { 76 };
 
-                    Text::with_alignment(
-                        pump_msg,
-                        Point::new(if flip_layout { 52 } else { 76 }, 32),
-                        style,
-                        Alignment::Center,
-                    )
-                    .draw(&mut display)
-                    .unwrap();
+                    // Draw the pump state. Drawing the pump state always takes
+                    // precedence. If the pumps are off, then we can display
+                    // other, less-interesting messages.
+
+                    if let Some(pump_msg) = pump_message(&pri_state, &sec_state) {
+                        let style = MonoTextStyle::new(&FONT_9X18_BOLD, BinaryColor::On);
+
+                        Text::with_alignment(
+                            pump_msg,
+                            Point::new(center, 32),
+                            style,
+                            Alignment::Center,
+                        )
+                        .draw(&mut display)
+                        .unwrap();
+                    } else {
+                        let style = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
+
+                        // If the pumps are off, we can display the WiFi address
+                        // (if we have one.)
+
+                        match wifi_config {
+                            WiFiConfig::Connected { addr, stamp } => {
+                                if now - stamp <= 10_000 {
+                                    use core::fmt::Write;
+                                    use heapless::String;
+
+                                    let mut text = String::<32>::new();
+                                    let _ = write!(
+                                        text,
+                                        "WiFi Address:\n{}.{}.{}.{}",
+                                        (addr >> 24) & 0xFF,
+                                        (addr >> 16) & 0xFF,
+                                        (addr >> 8) & 0xFF,
+                                        addr & 0xFF
+                                    );
+
+                                    Text::with_alignment(
+                                        text.as_str(),
+                                        Point::new(center, 27),
+                                        style,
+                                        Alignment::Center,
+                                    )
+                                    .draw(&mut display)
+                                    .unwrap();
+                                }
+                            }
+                            WiFiConfig::Disconnected { stamp } => {
+                                if now - stamp <= 10_000 {
+                                    Text::with_alignment(
+                                        "No WiFi\nconnection",
+                                        Point::new(center, 27),
+                                        style,
+                                        Alignment::Center,
+                                    )
+                                    .draw(&mut display)
+                                    .unwrap();
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Draw the side bar -- First draw the appropriate WiFi icon. If
@@ -151,6 +214,23 @@ pub async fn task(
                     );
 
                     bmp.draw(&mut display).unwrap();
+
+                    // If we go from no DHCP config to having one, update the
+                    // state and mark it with the current time.
+
+                    if matches!(wifi_config, WiFiConfig::Disconnected { .. })
+                        && stack.is_config_up()
+                    {
+                        wifi_config = WiFiConfig::Connected {
+                            addr: stack
+                                .config_v4()
+                                .map(|v| v.address.address().to_bits())
+                                .unwrap_or(0u32),
+                            stamp: now,
+                        };
+                    }
+                } else if matches!(wifi_config, WiFiConfig::Connected { .. }) {
+                    wifi_config = WiFiConfig::Disconnected { stamp: now };
                 }
 
                 // Drawing the sidebar -- now draw the state of the server (whether it

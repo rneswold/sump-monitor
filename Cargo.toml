@@ -25,6 +25,7 @@ embedded-hal-async = { version = "1.0"}
 embassy-futures = "0.1"
 futures = { version = "0.3", default-features = false, features = ["async-await"] }
 embedded-hal-bus = { version = "0.3", features = ["async"] }
+heapless = "0.8"
 maybe-async-cfg = "=0.2.4"
 rand = { version = "0.8", default-features = false }
 
