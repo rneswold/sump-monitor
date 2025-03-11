@@ -53,9 +53,9 @@ features = ["tcp", "udp", "dhcpv4", "medium-ethernet"]
 [profile.release]
 debug = 2
 lto = true
-opt-level = 'z'
+opt-level = 3
 
 [profile.dev]
 debug = 2
 lto = true
-opt-level = "z"
+opt-level = 3
