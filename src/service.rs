@@ -163,7 +163,7 @@ async fn wait_for_client(
                     } => {
                         *sec = PumpState::On(stamp);
                     }
-                    _ => {}
+                    Message::ClientConnected { .. } | Message::ClientDisconnected => {}
                 },
                 WaitResult::Lagged(_) => {}
             }
