@@ -38,6 +38,7 @@ use super::{
     types::{Message, Pump, PumpState},
     SysPublisher, SysSubscriber,
 };
+use defmt::warn;
 use embassy_futures::select::{select, Either};
 use embassy_net::{
     tcp::{Error, TcpSocket},
@@ -53,20 +54,34 @@ const PRIMARY_ON: u8 = 0x03;
 const SECONDARY_OFF: u8 = 0x04;
 const SECONDARY_ON: u8 = 0x05;
 
-// Sends the 16-byte packet to the client.
+const SERVICE_PORT: u16 = 10_000;
 
-async fn send_report(s: &mut TcpSocket<'_>, stamp: u64, tc: u8, ec: u8) -> Result<bool, Error> {
+// Builds the 16-byte packet that is used to report service status to the
+// client.
+
+fn build_packet(stamp: u64, tc: u8, ec: u8, buf: &mut [u8; 16]) {
     const FILL: [u8; 6] = [0u8; 6];
 
-    let mut buf = [0u8; 16];
-    let stamp = stamp.to_be_bytes();
+    let stamp: [u8; 8] = stamp.to_be_bytes();
 
     buf[0..8].copy_from_slice(&stamp);
     buf[8..14].copy_from_slice(&FILL);
     buf[14] = ec;
     buf[15] = tc;
+}
 
-    s.write(&buf).await.map(|v| v == 16)
+// Sends the 16-byte packet to the client.
+
+async fn send_report(s: &mut TcpSocket<'_>, stamp: u64, tc: u8, ec: u8) -> Result<(), Error> {
+    let mut buf = [0u8; 16];
+
+    build_packet(stamp, tc, ec, &mut buf);
+    if let Ok(n) = s.write(&buf).await {
+        if n != buf.len() {
+            return Err(Error::ConnectionReset);
+        }
+    }
+        Ok(())
 }
 
 // Sends initial reports to the clients based on the state of the primary
@@ -121,7 +136,7 @@ async fn wait_for_client(
     sec: &mut PumpState,
 ) -> Result<(), Error> {
     loop {
-        if let Either::Second(msg) = select(s.accept(10_000), rx.next_message()).await {
+        if let Either::Second(msg) = select(s.accept(SERVICE_PORT), rx.next_message()).await {
             match msg {
                 WaitResult::Message(payload) => match payload {
                     Message::PumpOff {
