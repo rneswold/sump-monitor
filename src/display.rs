@@ -25,8 +25,8 @@ enum LoopEvent {
 
 #[derive(PartialEq)]
 enum WiFiConfig {
-    Connected { addr: u32, stamp: u64 },
-    Disconnected { stamp: u64 },
+    Connected { addr: u32 },
+    Disconnected,
 }
 
 // Determines the amount of time to use a layout. OLEDs can get dim over
@@ -302,7 +302,7 @@ pub async fn task(
                             y: 36,
                         },
                     ),
-                    ServerState::Client => Image::new(
+                    ServerState::Client { .. } => Image::new(
                         &client_data,
                         Point {
                             x: sidebar_offset,
@@ -329,14 +329,7 @@ pub async fn task(
                 Pump::Secondary => sec_state = PumpState::Off(stamp),
             },
             Either::Second(LoopEvent::Message(Message::ClientConnected { addr })) => {
-                server_state = ServerState::Client;
-                defmt::info!(
-                    "Client connected: {:02}.{:02}.{:02}.{:02}",
-                    (addr >> 24) & 0xFF,
-                    (addr >> 16) & 0xFF,
-                    (addr >> 8) & 0xFF,
-                    addr & 0xFF
-                );
+                server_state = ServerState::Client { addr };
             }
             Either::Second(LoopEvent::Message(Message::ClientDisconnected)) => {
                 server_state = ServerState::NoClient;
