@@ -165,7 +165,9 @@ async fn wait_for_client(
                     }
                     Message::ClientConnected { .. } | Message::ClientDisconnected => {}
                 },
-                WaitResult::Lagged(_) => {}
+                WaitResult::Lagged(n) => {
+                    warn!("service missed {} message(s)", n);
+                }
             }
         } else {
             break Ok(());
@@ -196,6 +198,7 @@ async fn serve_client(
                 // programming error on their part, or a DOS attack. We
                 // shutdown the socket and break out of the loop.
 
+                warn!("client sent data ... closing connection");
                 break;
             }
             Either::Second(msg) => match msg {
