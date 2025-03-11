@@ -9,7 +9,7 @@ use embassy_rp::{
 use embedded_graphics::{
     image::Image,
     mono_font::{
-        ascii::{FONT_7X13_BOLD, FONT_9X18_BOLD},
+        ascii::{FONT_6X10, FONT_9X18_BOLD},
         MonoTextStyle,
     },
     pixelcolor::BinaryColor,
@@ -64,56 +64,87 @@ async fn report_pump_state(
 async fn report_wifi_state(
     display: &mut impl DrawTarget<Color = BinaryColor>,
     center: i32,
-    now: u64,
     wifi: &WiFiConfig,
-) -> bool {
-    let style = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
+) {
+    let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
 
     // If the pumps are off, we can display the WiFi address
     // (if we have one.)
 
     match wifi {
-        WiFiConfig::Connected { addr, stamp } => {
-            if now - stamp <= 10_000 {
-                use core::fmt::Write;
-                use heapless::String;
+        WiFiConfig::Connected { addr, .. } => {
+            use core::fmt::Write;
+            use heapless::String;
 
-                let mut text = String::<32>::new();
-                let _ = write!(
-                    text,
-                    "WiFi Address:\n{}.{}.{}.{}",
-                    (addr >> 24) & 0xFF,
-                    (addr >> 16) & 0xFF,
-                    (addr >> 8) & 0xFF,
-                    addr & 0xFF
-                );
-                let _ = Text::with_alignment(
-                    text.as_str(),
-                    Point::new(center, 27),
-                    style,
-                    Alignment::Center,
-                )
-                .draw(display);
-
-                true
-            } else {
-                false
-            }
+            let mut text = String::<32>::new();
+            let _ = write!(
+                text,
+                "WiFi\n\n{}.{}.{}.{}",
+                (addr >> 24) & 0xFF,
+                (addr >> 16) & 0xFF,
+                (addr >> 8) & 0xFF,
+                addr & 0xFF
+            );
+            let _ = Text::with_alignment(
+                text.as_str(),
+                Point::new(center, 22),
+                style,
+                Alignment::Center,
+            )
+            .draw(display);
         }
-        WiFiConfig::Disconnected { stamp } => {
-            if now - stamp <= 10_000 {
-                let _ = Text::with_alignment(
-                    "No WiFi\nconnection",
-                    Point::new(center, 27),
-                    style,
-                    Alignment::Center,
-                )
-                .draw(display);
+        WiFiConfig::Disconnected { .. } => {
+            let _ = Text::with_alignment(
+                "No WiFi\nconnection",
+                Point::new(center, 27),
+                style,
+                Alignment::Center,
+            )
+            .draw(display);
+        }
+    }
+}
 
-                true
-            } else {
-                false
-            }
+async fn report_client_state(
+    display: &mut impl DrawTarget<Color = BinaryColor>,
+    center: i32,
+    state: &ServerState,
+) {
+    let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
+
+    // If the pumps are off, we can display the WiFi address
+    // (if we have one.)
+
+    match state {
+        ServerState::Client { addr } => {
+            use core::fmt::Write;
+            use heapless::String;
+
+            let mut text = String::<32>::new();
+            let _ = write!(
+                text,
+                "Client\n\n{}.{}.{}.{}",
+                (addr >> 24) & 0xFF,
+                (addr >> 16) & 0xFF,
+                (addr >> 8) & 0xFF,
+                addr & 0xFF
+            );
+            let _ = Text::with_alignment(
+                text.as_str(),
+                Point::new(center, 22),
+                style,
+                Alignment::Center,
+            )
+            .draw(display);
+        }
+        ServerState::NoClient => {
+            let _ = Text::with_alignment(
+                "No client\nconnected",
+                Point::new(center, 27),
+                style,
+                Alignment::Center,
+            )
+            .draw(display);
         }
     }
 }
@@ -156,7 +187,7 @@ pub async fn task(
 
     display.init().await.unwrap();
 
-    // Create the ticker that drives our 1.4 second update rate (for flashing
+    // Create the ticker that drives our 1/4 second update rate (for flashing
     // icons.)
 
     let mut tick = Ticker::every(Duration::from_millis(250));
@@ -167,7 +198,7 @@ pub async fn task(
     let mut server_state = ServerState::NoClient;
     let mut pri_state = PumpState::Unknown;
     let mut sec_state = PumpState::Unknown;
-    let mut wifi_config = WiFiConfig::Disconnected { stamp: 0 };
+    let mut wifi_config = WiFiConfig::Disconnected;
 
     // Infinite loop. This task never exits.
 
@@ -216,7 +247,15 @@ pub async fn task(
                     // other, less-interesting messages.
 
                     if !report_pump_state(&mut display, center, &pri_state, &sec_state).await {
-                        report_wifi_state(&mut display, center, now, &wifi_config).await;
+                        match now % 10_000 {
+                            0..4_000 => {}
+                            4_000..7_000 => {
+                                report_wifi_state(&mut display, center, &wifi_config).await
+                            }
+                            7_000.. => {
+                                report_client_state(&mut display, center, &server_state).await
+                            }
+                        }
                     }
                 }
 
@@ -246,11 +285,10 @@ pub async fn task(
                                 .config_v4()
                                 .map(|v| v.address.address().to_bits())
                                 .unwrap_or(0u32),
-                            stamp: now,
                         };
                     }
                 } else if matches!(wifi_config, WiFiConfig::Connected { .. }) {
-                    wifi_config = WiFiConfig::Disconnected { stamp: now };
+                    wifi_config = WiFiConfig::Disconnected;
                 }
 
                 // Drawing the sidebar -- now draw the state of the server (whether it
