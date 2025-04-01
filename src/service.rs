@@ -39,13 +39,13 @@ use super::{
     SysPublisher, SysSubscriber,
 };
 use defmt::warn;
-use embassy_futures::select::{select, Either};
+use embassy_futures::select::{select, select3, Either, Either3};
 use embassy_net::{
     tcp::{Error, TcpSocket},
     IpAddress, IpEndpoint,
 };
 use embassy_sync::pubsub::WaitResult;
-use embassy_time::{Duration, Instant};
+use embassy_time::{Duration, Instant, Ticker};
 
 const NOOP: u8 = 0x00;
 // const ERROR: u8 = 0x01;
@@ -55,6 +55,7 @@ const SECONDARY_OFF: u8 = 0x04;
 const SECONDARY_ON: u8 = 0x05;
 
 const SERVICE_PORT: u16 = 10_000;
+const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(60);
 
 // Builds the 16-byte packet that is used to report service status to the
 // client.
@@ -81,7 +82,7 @@ async fn send_report(s: &mut TcpSocket<'_>, stamp: u64, tc: u8, ec: u8) -> Resul
             return Err(Error::ConnectionReset);
         }
     }
-        Ok(())
+    Ok(())
 }
 
 // Sends initial reports to the clients based on the state of the primary
@@ -136,8 +137,16 @@ async fn wait_for_client(
     sec: &mut PumpState,
 ) -> Result<(), Error> {
     loop {
-        if let Either::Second(msg) = select(s.accept(SERVICE_PORT), rx.next_message()).await {
-            match msg {
+        match select(s.accept(SERVICE_PORT), rx.next_message()).await {
+            // A client connected. Break out of the loop.
+            Either::First(_) => {
+                break Ok(());
+            }
+
+            // We received a message on the broadcast channel. That means
+            // something interesting happened locally. Update any state
+            // that we're interested in.
+            Either::Second(msg) => match msg {
                 WaitResult::Message(payload) => match payload {
                     Message::PumpOff {
                         stamp,
@@ -168,9 +177,7 @@ async fn wait_for_client(
                 WaitResult::Lagged(n) => {
                     warn!("service missed {} message(s)", n);
                 }
-            }
-        } else {
-            break Ok(());
+            },
         }
     }
 }
@@ -181,16 +188,19 @@ async fn serve_client(
     pri: &mut PumpState,
     sec: &mut PumpState,
 ) -> () {
+    let mut tick = Ticker::every(KEEPALIVE_TIMEOUT);
+
     loop {
         let mut buf = [0u8; 16];
 
         // Wait for a message from the client or a message from the
         // PubSub channel.
 
-        let msg = select(s.read(&mut buf[..]), rx.next_message()).await;
+        let msg = select3(s.read(&mut buf[..]), rx.next_message(), tick.next()).await;
+        let now = Instant::now().as_micros();
 
         match msg {
-            Either::First(_) => {
+            Either3::First(_) => {
                 // Either the socket has an error or the client sent us
                 // data.
                 //
@@ -201,7 +211,7 @@ async fn serve_client(
                 warn!("client sent data ... closing connection");
                 break;
             }
-            Either::Second(msg) => match msg {
+            Either3::Second(msg) => match msg {
                 WaitResult::Message(payload) => match payload {
                     Message::PumpOff {
                         stamp,
@@ -211,6 +221,7 @@ async fn serve_client(
                         if send_report(s, stamp, PRIMARY_OFF, 0).await.is_err() {
                             break;
                         }
+                        tick.reset()
                     }
                     Message::PumpOff {
                         stamp,
@@ -220,6 +231,7 @@ async fn serve_client(
                         if send_report(s, stamp, SECONDARY_OFF, 0).await.is_err() {
                             break;
                         }
+                        tick.reset()
                     }
                     Message::PumpOn {
                         stamp,
@@ -229,6 +241,7 @@ async fn serve_client(
                         if send_report(s, stamp, PRIMARY_ON, 0).await.is_err() {
                             break;
                         }
+                        tick.reset()
                     }
                     Message::PumpOn {
                         stamp,
@@ -238,11 +251,19 @@ async fn serve_client(
                         if send_report(s, stamp, SECONDARY_ON, 0).await.is_err() {
                             break;
                         }
+                        tick.reset()
                     }
                     _ => {}
                 },
                 WaitResult::Lagged(_) => {}
             },
+
+            // Nothing happened so send a keepalive message to the client.
+            Either3::Third(_) => {
+                if send_report(s, now, NOOP, 0).await.is_err() {
+                    break;
+                }
+            }
         }
     }
 }
