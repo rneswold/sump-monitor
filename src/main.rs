@@ -149,5 +149,5 @@ async fn main(spawner: Spawner) {
         sys_chan.publisher().unwrap()
     )));
 
-    unwrap!(spawner.spawn(heartbeat::task(control)));
+    unwrap!(spawner.spawn(heartbeat::task(control, p.BOOTSEL)));
 }
