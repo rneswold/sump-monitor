@@ -1,5 +1,6 @@
 use cyw43::Control;
 use embassy_time::{Duration, Ticker};
+use embassy_rp::peripherals::BOOTSEL;
 
 const DELAY: Duration = Duration::from_millis(50);
 
@@ -11,12 +12,12 @@ const DELAY: Duration = Duration::from_millis(50);
 // Right now it simply flashes the onboard LED.
 
 #[embassy_executor::task]
-pub async fn task(mut control: Control<'static>) -> ! {
+pub async fn task(mut control: Control<'static>, mut button: BOOTSEL) -> ! {
     let mut ticker = Ticker::every(DELAY);
     let mut state = 0u32;
 
     loop {
-        control.gpio_set(0, state == 0).await;
+        control.gpio_set(0, state == 0 || button.is_pressed()).await;
         state = (state + 1) % 20;
         ticker.next().await;
     }

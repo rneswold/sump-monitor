@@ -2,7 +2,7 @@ use defmt::Format;
 
 pub enum ServerState {
     NoClient,
-    Client,
+    Client { addr: u32 },
 }
 
 #[derive(Copy, Clone, Format)]

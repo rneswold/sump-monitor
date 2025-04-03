@@ -138,16 +138,16 @@ async fn main(spawner: Spawner) {
     )));
 
     unwrap!(spawner.spawn(pump_monitor::task(
-        Input::new(p.PIN_11, Pull::Up),
+        Input::new(p.PIN_3, Pull::Up),
         types::Pump::Primary,
         sys_chan.publisher().unwrap()
     )));
 
     unwrap!(spawner.spawn(pump_monitor::task(
-        Input::new(p.PIN_15, Pull::Up),
+        Input::new(p.PIN_7, Pull::Up),
         types::Pump::Secondary,
         sys_chan.publisher().unwrap()
     )));
 
-    unwrap!(spawner.spawn(heartbeat::task(control)));
+    unwrap!(spawner.spawn(heartbeat::task(control, p.BOOTSEL)));
 }
